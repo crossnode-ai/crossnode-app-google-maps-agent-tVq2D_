@@ -1,103 +1,144 @@
-import Image from "next/image";
+typescript
+"use client";
 
-export default function Home() {
+import { useState, useCallback } from "react";
+import { useSession } from "next-auth/react";
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Spinner } from "@/components/ui/spinner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle, Search } from "lucide-react";
+
+const AGENT_ID = "9a538196-899a-4a3e-a6d8-361bd5d0bf9c";
+
+interface AgentResponse {
+  query: string;
+  response: string;
+  error?: string;
+}
+
+export default function HomePage() {
+  const { data: session, status } = useSession();
+  const [query, setQuery] = useState<string>("");
+  const [results, setResults] = useState<AgentResponse | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleQueryChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setQuery(event.target.value);
+  };
+
+  const handleSubmit = useCallback(async () => {
+    if (!query.trim()) {
+      setError("Please enter a query.");
+      return;
+    }
+    if (status === "loading") {
+      return; // Prevent submission while session is loading
+    }
+    if (!session?.user?.email) {
+      setError("Authentication required. Please sign in.");
+      return;
+    }
+
+    setIsLoading(true);
+    setResults(null);
+    setError(null);
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/agent/invoke`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.accessToken}`, // Assuming accessToken is available
+        },
+        body: JSON.stringify({
+          agentId: AGENT_ID,
+          input: { query: query },
+          userId: session.user.email,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const data: AgentResponse = await response.json();
+      setResults(data);
+    } catch (err: any) {
+      console.error("Error submitting query:", err);
+      setError(err.message || "An unexpected error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [query, session, status]);
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+    <main className="container mx-auto p-4 md:p-8">
+      <Card className="w-full max-w-3xl mx-auto shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-center text-2xl font-bold">Google Maps Agent</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <Input
+              id="query"
+              placeholder="Enter your location query (e.g., 'restaurants near Eiffel Tower')"
+              value={query}
+              onChange={handleQueryChange}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleSubmit();
+                }
+              }}
+              className="flex-grow"
+              aria-label="Location query input"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+            <Button onClick={handleSubmit} disabled={isLoading || status === "loading" || !session?.user?.email}>
+              {isLoading ? <Spinner className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+              Search
+            </Button>
+          </div>
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {isLoading && (
+            <div className="flex justify-center items-center py-8">
+              <Spinner className="h-12 w-12" />
+            </div>
+          )}
+
+          {results && !isLoading && (
+            <Card className="mt-6 bg-secondary/30">
+              <CardHeader>
+                <CardTitle className="text-lg">Agent Response</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-2">Your Query: {results.query}</p>
+                <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: results.response }} />
+              </CardContent>
+            </Card>
+          )}
+        </CardContent>
+        <CardFooter className="flex justify-center">
+          {status === "unauthenticated" && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Authentication Required</AlertTitle>
+              <AlertDescription>Please sign in to use the agent.</AlertDescription>
+            </Alert>
+          )}
+        </CardFooter>
+      </Card>
+    </main>
   );
 }
